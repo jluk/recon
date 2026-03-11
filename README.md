@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Recon
 
-## Getting Started
+Competitive intelligence that runs itself. Recon monitors your competitors across the web and tells you when their claims don't match reality — so you can stop doomscrolling and start making decisions.
 
-First, run the development server:
+## What it does
+
+You tell Recon who to watch. It pulls from Hacker News, Reddit, G2, YouTube, Product Hunt, changelogs, and LinkedIn jobs — then cross-references everything to find the gap between what a competitor *says* and what users *actually experience*.
+
+Every finding follows a structured format: **Claim → Reality → Threat Level → What to do about it.** Nothing surfaces unless it's backed by at least two independent sources.
+
+## How it works
+
+An AI agent (Claude) does the analysis humans don't have time for:
+
+1. **Fetch** — Pulls data from 7+ sources per competitor on a weekly schedule or when a changelog diff is detected
+2. **Correlate** — Cross-references findings across sources. A Reddit complaint alone isn't signal. A Reddit complaint + a G2 review + a job posting telling the same story is.
+3. **Analyze** — Evaluates each finding against your product context. Instead of generic summaries, you get specific implications: which of *your* users are at risk, what *your* product does better, and whether you need to act.
+4. **Deliver** — Structured briefs via email or dashboard. If a finding warrants hands-on testing, the agent tells you exactly what to test and what to look for.
+
+## Why it matters
+
+Competitive intelligence today is either expensive (analyst teams) or shallow (Google Alerts). Recon sits in the middle — an always-on agent that reads the sources you'd read yourself, but catches what you'd miss by correlating across them. It turns a 2-hour weekly ritual into a 5-minute Monday morning read.
+
+## Stack
+
+Next.js · TypeScript · Tailwind · shadcn/ui · Claude API · Supabase · Clerk
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000).
