@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,10 @@ import {
   Shield,
   Eye,
   ArrowRight,
+  Trash2,
+  CheckSquare,
+  Square,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
@@ -41,24 +46,29 @@ export default function FindingsPage() {
   const [competitorFilter, setCompetitorFilter] = useState<string>("all");
   const [threatFilter, setThreatFilter] = useState<string>("all");
   const [confidenceFilter, setConfidenceFilter] = useState<string>("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const supabase = createClient();
 
-  useEffect(() => {
-    async function load() {
-      const [findingsRes, competitorsRes] = await Promise.all([
-        supabase
-          .from("findings")
-          .select("*")
-          .order("created_at", { ascending: false }),
-        supabase.from("competitors").select("*"),
-      ]);
+  async function loadFindings() {
+    const [findingsRes, competitorsRes] = await Promise.all([
+      supabase
+        .from("findings")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase.from("competitors").select("*"),
+    ]);
 
-      setFindings((findingsRes.data as Finding[]) ?? []);
-      setCompetitors((competitorsRes.data as Competitor[]) ?? []);
-      setLoading(false);
-    }
-    load();
+    setFindings((findingsRes.data as Finding[]) ?? []);
+    setCompetitors((competitorsRes.data as Competitor[]) ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadFindings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -74,6 +84,46 @@ export default function FindingsPage() {
     return true;
   });
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((f) => f.id)));
+    }
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+    setConfirmDelete(false);
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    setDeleting(true);
+
+    const ids = Array.from(selected);
+    const { error } = await supabase
+      .from("findings")
+      .delete()
+      .in("id", ids);
+
+    if (!error) {
+      setFindings((prev) => prev.filter((f) => !selected.has(f.id)));
+      exitSelectMode();
+    }
+    setDeleting(false);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -84,12 +134,80 @@ export default function FindingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Findings</h1>
-        <p className="text-muted-foreground">
-          Where competitor claims meet user reality
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Findings</h1>
+          <p className="text-muted-foreground">
+            Where competitor claims meet user reality
+          </p>
+        </div>
+        {findings.length > 0 && !selectMode && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectMode(true)}
+          >
+            <CheckSquare className="mr-2 h-4 w-4" />
+            Select
+          </Button>
+        )}
       </div>
+
+      {/* Select mode toolbar */}
+      {selectMode && (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary/50 p-3">
+          <button
+            onClick={selectAllVisible}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            {selected.size === filtered.length && filtered.length > 0
+              ? "Deselect all"
+              : `Select all ${filtered.length}`}
+          </button>
+          <span className="text-sm text-muted-foreground">
+            {selected.size} selected
+          </span>
+          <div className="flex-1" />
+          {!confirmDelete ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selected.size === 0}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete{selected.size > 0 ? ` (${selected.size})` : ""}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-destructive">
+                Delete {selected.size} finding{selected.size !== 1 ? "s" : ""}?
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deleting}
+                onClick={deleteSelected}
+              >
+                {deleting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Confirm
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+          <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <Filter className="h-4 w-4 text-muted-foreground" />
@@ -148,13 +266,33 @@ export default function FindingsPage() {
           const threat =
             threatConfig[finding.threat_level] ?? threatConfig.Monitor;
           const ThreatIcon = threat.icon;
+          const isSelected = selected.has(finding.id);
 
-          return (
-            <Link key={finding.id} href={`/findings/${finding.id}`}>
-              <div className="group rounded-xl border border-border p-5 transition-all hover:border-foreground/20 hover:bg-secondary/20">
-                <div className="flex gap-4">
-                  {/* Threat indicator bar */}
-                  <div className="flex flex-col items-center gap-2 pt-0.5">
+          const card = (
+            <div className={`group rounded-xl border p-5 transition-all ${
+              isSelected
+                ? "border-foreground/30 bg-secondary/40"
+                : "border-border hover:border-foreground/20 hover:bg-secondary/20"
+            }`}>
+              <div className="flex gap-4">
+                {/* Checkbox or threat icon */}
+                <div className="flex flex-col items-center gap-2 pt-0.5">
+                  {selectMode ? (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSelect(finding.id);
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-secondary"
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="h-4 w-4 text-foreground" />
+                      ) : (
+                        <Square className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  ) : (
                     <div
                       className={`flex h-8 w-8 items-center justify-center rounded-lg ${
                         finding.threat_level === "High"
@@ -166,57 +304,77 @@ export default function FindingsPage() {
                     >
                       <ThreatIcon className="h-4 w-4" />
                     </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  {/* Header row */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant={threat.variant}>{threat.label}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {finding.confidence} confidence
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      &middot;
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {getCompetitorName(finding.competitor_id)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      &middot;
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(finding.created_at).toLocaleDateString()}
+                    </span>
                   </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Header row */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={threat.variant}>{threat.label}</Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {finding.confidence} confidence
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        &middot;
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {getCompetitorName(finding.competitor_id)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        &middot;
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(finding.created_at).toLocaleDateString()}
-                      </span>
+                  {/* Claim as title */}
+                  <p className="text-sm font-semibold leading-snug mb-2">
+                    {finding.claim}
+                  </p>
+
+                  {/* Reality as summary */}
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+                    {finding.reality}
+                  </p>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {finding.sources.map((source) => (
+                        <span
+                          key={source}
+                          className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
+                        >
+                          {source}
+                        </span>
+                      ))}
                     </div>
-
-                    {/* Claim as title */}
-                    <p className="text-sm font-semibold leading-snug mb-2">
-                      {finding.claim}
-                    </p>
-
-                    {/* Reality as summary */}
-                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
-                      {finding.reality}
-                    </p>
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {finding.sources.map((source) => (
-                          <span
-                            key={source}
-                            className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
-                          >
-                            {source}
-                          </span>
-                        ))}
-                      </div>
+                    {!selectMode && (
                       <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
+            </div>
+          );
+
+          if (selectMode) {
+            return (
+              <div
+                key={finding.id}
+                className="cursor-pointer"
+                onClick={() => toggleSelect(finding.id)}
+              >
+                {card}
+              </div>
+            );
+          }
+
+          return (
+            <Link key={finding.id} href={`/findings/${finding.id}`}>
+              {card}
             </Link>
           );
         })}
