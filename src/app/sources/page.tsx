@@ -1,25 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
-  Globe,
-  FileText,
   MessageSquare,
-  Star,
-  Briefcase,
   Youtube,
-  Rocket,
   Twitter,
+  Globe,
+  Star,
 } from "lucide-react";
 
 interface Source {
@@ -27,137 +20,107 @@ interface Source {
   name: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
-  enabled: boolean;
-  status: "active" | "configured" | "needs-setup" | "roadmap";
   method: string;
-  tier: "v1" | "roadmap";
+  tier: "active" | "roadmap";
+  storageKey: string;
 }
 
-const initialSources: Source[] = [
-  {
-    id: "website",
-    name: "Website & Marketing Pages",
-    description: "Scrape + diff against last snapshot. Track claim language and positioning shifts.",
-    icon: Globe,
-    enabled: true,
-    status: "needs-setup",
-    method: "Scrape + diff",
-    tier: "v1",
-  },
-  {
-    id: "changelog",
-    name: "Changelog",
-    description: "What actually shipped vs. what was announced.",
-    icon: FileText,
-    enabled: true,
-    status: "needs-setup",
-    method: "Scrape + diff",
-    tier: "v1",
-  },
+const sources: Source[] = [
   {
     id: "hackernews",
     name: "Hacker News",
-    description: "Technical user reactions, zero sponsored content. Highest quality community signal.",
+    description:
+      "Technical user reactions via Algolia API. Fuzzy name matching across stories and comments. 90-day window.",
     icon: MessageSquare,
-    enabled: true,
-    status: "needs-setup",
-    method: "Algolia API (free)",
-    tier: "v1",
-  },
-  {
-    id: "g2",
-    name: "G2 / Capterra Reviews",
-    description: "Filter for friction language: 'but', 'however', 'wish', 'limitation'.",
-    icon: Star,
-    enabled: true,
-    status: "needs-setup",
-    method: "Scrape",
-    tier: "v1",
+    method: "Algolia API (free, no auth)",
+    tier: "active",
+    storageKey: "recon_source_hackernews",
   },
   {
     id: "reddit",
     name: "Reddit",
-    description: "r/VideoEditing, r/artificial — community sentiment, unfiltered friction.",
+    description:
+      "Community sentiment from 6 subreddits: VideoEditing, artificial, StableDiffusion, aivideo, filmmakers, vfx. Rate-limited.",
     icon: MessageSquare,
-    enabled: true,
-    status: "needs-setup",
-    method: "Reddit API (free)",
-    tier: "v1",
+    method: "Public JSON endpoints (free, no auth)",
+    tier: "active",
+    storageKey: "recon_source_reddit",
   },
   {
     id: "youtube",
-    name: "YouTube Comments",
-    description: "Unfiltered reactions from actual target users on demo videos.",
+    name: "YouTube",
+    description:
+      "Search videos, fetch stats and top comments from top 5 results by view count. Uses your Google API key.",
     icon: Youtube,
-    enabled: true,
-    status: "needs-setup",
-    method: "YouTube Data API (free)",
-    tier: "v1",
-  },
-  {
-    id: "producthunt",
-    name: "Product Hunt",
-    description: "Launch-day sentiment, structured reviews.",
-    icon: Rocket,
-    enabled: true,
-    status: "needs-setup",
-    method: "Free API",
-    tier: "v1",
-  },
-  {
-    id: "linkedin",
-    name: "LinkedIn Jobs & Company",
-    description: "Role, seniority, volume — leading indicator of strategic investment.",
-    icon: Briefcase,
-    enabled: false,
-    status: "needs-setup",
-    method: "py-linkedin-jobs-scraper",
-    tier: "v1",
-  },
-  {
-    id: "twitter",
-    name: "Twitter / X",
-    description: "Highest volume signal source. Deferred due to $100/mo API cost.",
-    icon: Twitter,
-    enabled: false,
-    status: "roadmap",
-    method: "$100/mo API",
-    tier: "roadmap",
+    method: "YouTube Data API (uses Gemini API key)",
+    tier: "active",
+    storageKey: "recon_source_youtube",
   },
 ];
 
-const statusLabel = {
-  active: { label: "Active", variant: "default" as const },
-  configured: { label: "Configured", variant: "outline" as const },
-  "needs-setup": { label: "Needs Setup", variant: "secondary" as const },
-  roadmap: { label: "Roadmap", variant: "ghost" as const },
-};
+const roadmapSources = [
+  {
+    id: "twitter",
+    name: "Twitter / X",
+    description:
+      "Highest volume signal source. Deferred due to $100/mo API cost.",
+    icon: Twitter,
+  },
+  {
+    id: "g2",
+    name: "G2 / Capterra Reviews",
+    description:
+      "Structured user reviews with friction language filtering. Needs scraping feasibility research.",
+    icon: Star,
+  },
+  {
+    id: "website",
+    name: "Website & Changelog Diffs",
+    description:
+      "Track positioning shifts and feature launches via automated page diffing.",
+    icon: Globe,
+  },
+];
 
 export default function SourcesPage() {
-  const [sources, setSources] = useState(initialSources);
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+  const [loaded, setLoaded] = useState(false);
 
-  function toggleSource(id: string) {
-    setSources(
-      sources.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s))
-    );
+  useEffect(() => {
+    const state: Record<string, boolean> = {};
+    for (const source of sources) {
+      const stored = localStorage.getItem(source.storageKey);
+      state[source.id] = stored === null ? true : stored === "true";
+    }
+    setEnabled(state);
+    setLoaded(true);
+  }, []);
+
+  function toggle(source: Source) {
+    const next = !enabled[source.id];
+    setEnabled((prev) => ({ ...prev, [source.id]: next }));
+    localStorage.setItem(source.storageKey, String(next));
   }
 
-  const v1Sources = sources.filter((s) => s.tier === "v1");
-  const roadmapSources = sources.filter((s) => s.tier === "roadmap");
+  if (!loaded) return null;
+
+  const enabledCount = Object.values(enabled).filter(Boolean).length;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Sources</h1>
         <p className="text-muted-foreground">
-          Data sources used for competitive intelligence
+          {enabledCount} of {sources.length} sources enabled for analysis runs
         </p>
       </div>
 
       <div>
-        <h2 className="mb-4 text-lg font-semibold">V1 Sources</h2>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Active Sources
+        </h2>
         <div className="grid gap-3">
-          {v1Sources.map((source) => (
+          {sources.map((source) => (
             <Card key={source.id}>
               <CardContent className="flex items-center justify-between py-4">
                 <div className="flex items-center gap-4">
@@ -167,27 +130,22 @@ export default function SourcesPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium">{source.name}</p>
-                      <Badge variant={statusLabel[source.status].variant}>
-                        {statusLabel[source.status].label}
+                      <Badge variant={enabled[source.id] ? "default" : "secondary"}>
+                        {enabled[source.id] ? "Enabled" : "Disabled"}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {source.description}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground/70">
-                      Method: {source.method}
+                      {source.method}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm">
-                    Configure
-                  </Button>
-                  <Switch
-                    checked={source.enabled}
-                    onCheckedChange={() => toggleSource(source.id)}
-                  />
-                </div>
+                <Switch
+                  checked={enabled[source.id] ?? true}
+                  onCheckedChange={() => toggle(source)}
+                />
               </CardContent>
             </Card>
           ))}
@@ -195,10 +153,12 @@ export default function SourcesPage() {
       </div>
 
       <div>
-        <h2 className="mb-4 text-lg font-semibold">Roadmap</h2>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Roadmap
+        </h2>
         <div className="grid gap-3">
           {roadmapSources.map((source) => (
-            <Card key={source.id} className="opacity-60">
+            <Card key={source.id} className="opacity-50">
               <CardContent className="flex items-center justify-between py-4">
                 <div className="flex items-center gap-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
@@ -207,9 +167,9 @@ export default function SourcesPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium">{source.name}</p>
-                      <Badge variant="ghost">Roadmap</Badge>
+                      <Badge variant="outline">Roadmap</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {source.description}
                     </p>
                   </div>

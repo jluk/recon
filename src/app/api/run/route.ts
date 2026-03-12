@@ -24,7 +24,10 @@ export async function POST(req: NextRequest) {
       product_name,
       product_context,
       gemini_api_key,
+      enabled_sources,
     } = body;
+
+    const activeSources: string[] = enabled_sources ?? ["hackernews", "reddit", "youtube"];
 
     if (!competitor_id || !competitor_name || !gemini_api_key) {
       return NextResponse.json(
@@ -54,35 +57,38 @@ export async function POST(req: NextRequest) {
 
     runId = run.id as string;
 
-    // 2. Fetch all sources in parallel (Reddit is sequential internally due to rate limits)
+    // 2. Fetch enabled sources in parallel
     const sourceData: SourceData = {};
     let sourcesUsed = 0;
 
-    const [hnResult, redditResult, ytResult] = await Promise.allSettled([
-      fetchHackerNews(competitor_name, 90),
-      fetchReddit(competitor_name, 90),
-      fetchYouTube(competitor_name, gemini_api_key, 90),
-    ]);
+    const fetches: Promise<{ key: string; result: unknown }>[] = [];
 
-    if (hnResult.status === "fulfilled") {
-      sourceData.hn = hnResult.value;
-      sourcesUsed++;
-    } else {
-      console.error("HN fetch failed:", hnResult.reason);
+    if (activeSources.includes("hackernews")) {
+      fetches.push(
+        fetchHackerNews(competitor_name, 90).then((r) => ({ key: "hn", result: r }))
+      );
+    }
+    if (activeSources.includes("reddit")) {
+      fetches.push(
+        fetchReddit(competitor_name, 90).then((r) => ({ key: "reddit", result: r }))
+      );
+    }
+    if (activeSources.includes("youtube")) {
+      fetches.push(
+        fetchYouTube(competitor_name, gemini_api_key, 90).then((r) => ({ key: "youtube", result: r }))
+      );
     }
 
-    if (redditResult.status === "fulfilled") {
-      sourceData.reddit = redditResult.value;
-      sourcesUsed++;
-    } else {
-      console.error("Reddit fetch failed:", redditResult.reason);
-    }
+    const results = await Promise.allSettled(fetches);
 
-    if (ytResult.status === "fulfilled") {
-      sourceData.youtube = ytResult.value;
-      sourcesUsed++;
-    } else {
-      console.error("YouTube fetch failed:", ytResult.reason);
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (sourceData as any)[r.value.key] = r.value.result;
+        sourcesUsed++;
+      } else {
+        console.error("Source fetch failed:", r.reason);
+      }
     }
 
     // 3. Run Gemini analysis

@@ -93,6 +93,20 @@ export default function RunsPage() {
     setLoading(false);
   }
 
+  function getEnabledSources(): string[] {
+    const sourceKeys = [
+      { id: "hackernews", key: "recon_source_hackernews" },
+      { id: "reddit", key: "recon_source_reddit" },
+      { id: "youtube", key: "recon_source_youtube" },
+    ];
+    return sourceKeys
+      .filter(({ key }) => {
+        const v = localStorage.getItem(key);
+        return v === null || v === "true";
+      })
+      .map(({ id }) => id);
+  }
+
   useEffect(() => {
     setApiKey(localStorage.getItem("recon_gemini_key") ?? "");
     setProductName(localStorage.getItem("recon_product_name") ?? "Google Vids");
@@ -147,6 +161,7 @@ export default function RunsPage() {
             product_name: productName,
             product_context: productContext,
             gemini_api_key: apiKey,
+            enabled_sources: getEnabledSources(),
           }),
         });
 
