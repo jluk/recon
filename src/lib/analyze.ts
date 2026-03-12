@@ -102,7 +102,8 @@ export async function analyzeCompetitor(
   productName: string,
   productContext: string,
   sourceData: SourceData,
-  apiKey: string
+  apiKey: string,
+  existingFindings?: string[]
 ): Promise<AnalysisResult> {
   const ai = new GoogleGenAI({ apiKey });
 
@@ -116,6 +117,11 @@ export async function analyzeCompetitor(
   if (sourceData.reddit) sourceNames.push("Reddit");
   if (sourceData.youtube) sourceNames.push("YouTube");
 
+  let existingFindingsBlock = "";
+  if (existingFindings && existingFindings.length > 0) {
+    existingFindingsBlock = `\n## Existing findings (DO NOT repeat these — find NEW insights)\n${existingFindings.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`;
+  }
+
   const prompt = `You are a competitive intelligence analyst. Your job is to analyze raw data about ${competitorName} and produce structured findings for the ${productName} team.
 
 ## Your product context
@@ -123,14 +129,16 @@ ${productContext}
 
 ## Available sources
 Data was collected from: ${sourceNames.join(", ")}
-
+${existingFindingsBlock}
 ## Rules
+- Return AT MOST 5 findings, prioritized by threat level and confidence. Quality over quantity.
 - Only surface findings corroborated by at least 2 independent data points from DIFFERENT sources or different users (e.g. an HN comment + a Reddit post, or two Reddit comments from different users in different threads)
 - Cross-source corroboration is the strongest signal: if HN users AND Reddit users AND YouTube commenters all say the same thing, that's high confidence
 - Never summarize press releases or marketing copy back — find the GAP between claims and reality
 - Be specific: name the exact ${productName} feature or gap affected
 - If you cannot find findings that meet the 2-source minimum, return an empty findings array — that is better than fabricating weak findings
 - Weight HN comments highly — they are technically sophisticated with zero sponsored content
+- Consolidate related data points into a single finding rather than creating separate findings for each mention. If multiple users say the same thing, that strengthens ONE finding — it does not create multiple findings.
 
 ## Source data
 ${formattedSources}

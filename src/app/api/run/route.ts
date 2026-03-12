@@ -91,13 +91,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Run Gemini analysis
+    // 3. Fetch existing findings for this competitor to avoid duplicates
+    const { data: existingRows } = await supabase
+      .from("findings")
+      .select("claim")
+      .eq("competitor_id", competitor_id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    const existingClaims = (existingRows ?? []).map(
+      (r: { claim: string }) => r.claim
+    );
+
+    // 4. Run Gemini analysis
     const analysis = await analyzeCompetitor(
       competitor_name,
       product_name || "our product",
       product_context || "",
       sourceData,
-      gemini_api_key
+      gemini_api_key,
+      existingClaims
     );
 
     // 4. Store findings
