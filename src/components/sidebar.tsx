@@ -14,6 +14,8 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 
+const VIEWED_KEY = "recon_findings_last_viewed";
+
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Competitors", href: "/competitors", icon: Target },
@@ -25,16 +27,31 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [highCount, setHighCount] = useState(0);
+  const [unseenCount, setUnseenCount] = useState(0);
 
   useEffect(() => {
+    // Mark findings as viewed when on the findings page
+    if (pathname.startsWith("/findings")) {
+      localStorage.setItem(VIEWED_KEY, new Date().toISOString());
+      setUnseenCount(0);
+      return;
+    }
+
+    // On other pages, count high-threat findings created since last viewed
+    const lastViewed = localStorage.getItem(VIEWED_KEY);
     const supabase = createClient();
-    supabase
+
+    let query = supabase
       .from("findings")
       .select("id", { count: "exact", head: true })
-      .eq("threat_level", "High")
-      .then(({ count }) => setHighCount(count ?? 0));
-  }, [pathname]); // refresh on navigation
+      .eq("threat_level", "High");
+
+    if (lastViewed) {
+      query = query.gt("created_at", lastViewed);
+    }
+
+    query.then(({ count }) => setUnseenCount(count ?? 0));
+  }, [pathname]);
 
   return (
     <aside className="flex w-64 flex-col border-r border-border bg-card">
@@ -63,9 +80,9 @@ export function Sidebar() {
             >
               <item.icon className="h-4 w-4" />
               <span className="flex-1">{item.name}</span>
-              {item.badge && highCount > 0 && (
+              {item.badge && unseenCount > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
-                  {highCount}
+                  {unseenCount}
                 </span>
               )}
             </Link>

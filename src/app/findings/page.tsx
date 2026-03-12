@@ -324,7 +324,7 @@ export default function FindingsPage() {
         </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {filtered.map((finding) => {
           const threat =
             threatConfig[finding.threat_level] ?? threatConfig.Monitor;
@@ -332,14 +332,14 @@ export default function FindingsPage() {
           const isSelected = selected.has(finding.id);
 
           const card = (
-            <div className={`group rounded-lg border px-4 py-3 transition-all ${
+            <div className={`group rounded-xl border px-5 py-4 transition-all ${
               isSelected
                 ? "border-foreground/30 bg-secondary/40"
                 : "border-border hover:border-foreground/20 hover:bg-secondary/20"
             }`}>
-              <div className="flex gap-3">
+              <div className="flex gap-4">
                 {/* Checkbox or threat icon */}
-                <div className="flex flex-col items-center pt-0.5">
+                <div className="flex flex-col items-center pt-1">
                   {selectMode ? (
                     <button
                       onClick={(e) => {
@@ -347,17 +347,17 @@ export default function FindingsPage() {
                         e.stopPropagation();
                         toggleSelect(finding.id);
                       }}
-                      className="flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-secondary"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-secondary"
                     >
                       {isSelected ? (
-                        <CheckSquare className="h-3.5 w-3.5 text-foreground" />
+                        <CheckSquare className="h-4 w-4 text-foreground" />
                       ) : (
-                        <Square className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Square className="h-4 w-4 text-muted-foreground" />
                       )}
                     </button>
                   ) : (
                     <div
-                      className={`flex h-7 w-7 items-center justify-center rounded-md ${
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg ${
                         finding.threat_level === "High"
                           ? "bg-destructive/10 text-destructive"
                           : finding.threat_level === "Medium"
@@ -365,40 +365,40 @@ export default function FindingsPage() {
                             : "bg-secondary text-muted-foreground"
                       }`}
                     >
-                      <ThreatIcon className="h-3.5 w-3.5" />
+                      <ThreatIcon className="h-4 w-4" />
                     </div>
                   )}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  {/* Claim as title + metadata inline */}
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium leading-snug">
+                  {/* Claim as title */}
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-[15px] font-semibold leading-snug">
                       {finding.claim}
                     </p>
                     {!selectMode && (
-                      <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                      <ArrowRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                     )}
                   </div>
 
                   {/* Reality preview */}
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-1 mt-0.5">
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 mt-1">
                     {finding.reality}
                   </p>
 
                   {/* Meta row */}
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <Badge variant={threat.variant} className="text-[10px] px-1.5 py-0">{threat.label}</Badge>
-                    <span className="text-[11px] text-muted-foreground">
-                      {finding.confidence}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge variant={threat.variant}>{threat.label}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {finding.confidence} confidence
                     </span>
-                    <span className="text-[11px] text-muted-foreground">&middot;</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">&middot;</span>
+                    <span className="text-xs text-muted-foreground">
                       {getCompetitorName(finding.competitor_id)}
                     </span>
-                    <span className="text-[11px] text-muted-foreground">&middot;</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">&middot;</span>
+                    <span className="text-xs text-muted-foreground">
                       {new Date(finding.created_at).toLocaleDateString()}
                     </span>
                   </div>
