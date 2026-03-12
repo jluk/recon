@@ -10,7 +10,7 @@ Every finding follows a structured format: **Claim → Reality → Threat Level 
 
 ## How it works
 
-An AI agent (Claude) does the analysis humans don't have time for:
+An AI agent (Gemini) does the analysis humans don't have time for:
 
 1. **Fetch** — Pulls data from 7+ sources per competitor on a weekly schedule or when a changelog diff is detected
 2. **Correlate** — Cross-references findings across sources. A Reddit complaint alone isn't signal. A Reddit complaint + a G2 review + a job posting telling the same story is.
@@ -23,7 +23,7 @@ Competitive intelligence today is either expensive (analyst teams) or shallow (G
 
 ## Stack
 
-Next.js · TypeScript · Tailwind · shadcn/ui · Claude API · Supabase · Clerk
+Next.js · TypeScript · Tailwind · shadcn/ui · Gemini API · Supabase · Clerk
 
 ## Getting started
 

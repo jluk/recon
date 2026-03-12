@@ -1,59 +1,115 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, CheckSquare } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  Shield,
+  Eye,
+  FlaskConical,
+  Flag,
+  CheckCircle2,
+  Siren,
+} from "lucide-react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase";
+import type { Database } from "@/lib/database.types";
 
-const threatColors = {
-  High: "destructive",
-  Medium: "outline",
-  Low: "secondary",
-  Monitor: "ghost",
-} as const;
+type Finding = Database["public"]["Tables"]["findings"]["Row"];
+type Competitor = Database["public"]["Tables"]["competitors"]["Row"];
 
-export default async function FindingDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+const threatConfig: Record<
+  string,
+  { variant: "destructive" | "outline" | "secondary" | "ghost"; icon: typeof AlertTriangle }
+> = {
+  High: { variant: "destructive", icon: AlertTriangle },
+  Medium: { variant: "outline", icon: Shield },
+  Low: { variant: "secondary", icon: Eye },
+  Monitor: { variant: "ghost", icon: Eye },
+};
 
-  // Demo data — will be replaced with DB lookup
-  const finding = {
-    id,
-    claim: "Gen-3 Alpha delivers 'cinematic quality' video generation",
-    reality:
-      "70% of Reddit reactions mention 4-second clip limit as a dealbreaker for professional workflows. Three G2 reviews this month specifically cite this as reason for churn. Runway's latest job postings show 2 new roles for 'long-form video research.'",
-    confidence: "Medium" as const,
-    threatLevel: "High" as const,
-    competitor: "RunwayML",
-    sources: ["Reddit r/VideoEditing", "G2 Reviews", "HN Discussion"],
-    date: "2024-12-15",
-    whyItMatters:
-      "Runway is positioning Gen-3 as professional-grade, but clip duration limits prevent use in any workflow requiring continuity — explainer videos, training content, marketing videos. This directly overlaps with Vids' core use case of creating workplace videos from Docs/Slides outlines.",
-    userSegmentOverlap:
-      "Marketing teams and L&D creators who need videos longer than 10 seconds — essentially all enterprise Vids users.",
-    compensatingAdvantages:
-      "Vids generates full-length videos from existing Workspace content (Docs, Slides). No clip-stitching required. Enterprise security, Drive integration, and Google Meet embedding are table stakes for Vids' target users that Runway doesn't address.",
-    recommendedAction: "Manual test recommended" as const,
-    testingCriteria: {
-      whatToTest:
-        "Generate a 60-second explainer video from a Google Doc outline using Runway Gen-3 Alpha.",
-      whatToLookFor:
-        "Does output quality hold up past 4 seconds? Is there visible quality degradation at 30+ seconds? Is there a watermark on free tier?",
-      whatChangesAssessment:
-        "If quality matches the demo at 60 seconds, threat level upgrades to High with High Confidence. If 4-second limit is real, current assessment holds.",
-    },
-  };
+const actionConfig: Record<
+  string,
+  { icon: typeof CheckCircle2; color: string }
+> = {
+  "No action needed": { icon: CheckCircle2, color: "text-muted-foreground" },
+  "Flag to team": { icon: Flag, color: "text-orange-600" },
+  "Manual test recommended": { icon: FlaskConical, color: "text-blue-600" },
+  Escalate: { icon: Siren, color: "text-destructive" },
+};
+
+export default function FindingDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const [finding, setFinding] = useState<Finding | null>(null);
+  const [competitor, setCompetitor] = useState<Competitor | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function load() {
+      const { data: f } = await supabase
+        .from("findings")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (f) {
+        const finding = f as Finding;
+        setFinding(finding);
+        const { data: c } = await supabase
+          .from("competitors")
+          .select("*")
+          .eq("id", finding.competitor_id)
+          .single();
+        setCompetitor(c as Competitor | null);
+      }
+      setLoading(false);
+    }
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!finding) {
+    return (
+      <div className="space-y-4">
+        <Link
+          href="/findings"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-3 w-3" />
+          Back to Findings
+        </Link>
+        <p className="text-muted-foreground">Finding not found.</p>
+      </div>
+    );
+  }
+
+  const threat =
+    threatConfig[finding.threat_level] ?? threatConfig.Monitor;
+  const action =
+    actionConfig[finding.recommended_action] ?? actionConfig["No action needed"];
+  const ActionIcon = action.icon;
+  const testingCriteria = finding.testing_criteria as {
+    what_to_test?: string;
+    what_to_look_for?: string;
+    what_changes_assessment?: string;
+  } | null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 max-w-3xl">
       <Link
         href="/findings"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -62,138 +118,133 @@ export default async function FindingDetailPage({
         Back to Findings
       </Link>
 
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Badge variant={threatColors[finding.threatLevel]}>
-              {finding.threatLevel} Threat
-            </Badge>
-            <Badge variant="outline">{finding.confidence} Confidence</Badge>
-          </div>
-          <h1 className="text-xl font-bold tracking-tight">
-            {finding.competitor}: {finding.claim}
-          </h1>
-          <p className="text-sm text-muted-foreground">{finding.date}</p>
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Badge variant={threat.variant}>
+            {finding.threat_level} Threat
+          </Badge>
+          <Badge variant="outline">{finding.confidence} Confidence</Badge>
+          <span className="text-sm text-muted-foreground">
+            {competitor?.name} &middot;{" "}
+            {new Date(finding.created_at).toLocaleDateString()}
+          </span>
+        </div>
+        <h1 className="text-xl font-bold tracking-tight leading-snug">
+          {finding.claim}
+        </h1>
+      </div>
+
+      {/* The Gap — this is the core insight */}
+      <div className="space-y-4">
+        <div className="rounded-xl border-2 border-border bg-secondary/30 p-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            They say
+          </p>
+          <p className="text-sm leading-relaxed">{finding.claim}</p>
+        </div>
+
+        <div className="rounded-xl border-2 border-foreground/10 bg-background p-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Users say
+          </p>
+          <p className="text-sm leading-relaxed">{finding.reality}</p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                CLAIM
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm">{finding.claim}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                REALITY
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm">{finding.reality}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                IMPLICATION FOR VIDS
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  WHY IT MATTERS
-                </p>
-                <p className="mt-1 text-sm">{finding.whyItMatters}</p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  USER SEGMENT OVERLAP
-                </p>
-                <p className="mt-1 text-sm">{finding.userSegmentOverlap}</p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  VIDS COMPENSATING ADVANTAGES
-                </p>
-                <p className="mt-1 text-sm">
-                  {finding.compensatingAdvantages}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Sources */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          Corroborated by
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {finding.sources.map((source) => (
+            <span
+              key={source}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+            >
+              {source}
+            </span>
+          ))}
         </div>
+      </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                SOURCES
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {finding.sources.map((source) => (
-                  <div
-                    key={source}
-                    className="rounded bg-secondary px-3 py-2 text-sm"
-                  >
-                    {source}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+      {/* So What — the actionable part */}
+      {finding.why_it_matters && (
+        <div className="rounded-xl border border-border p-6 space-y-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            So what
+          </p>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                RECOMMENDED ACTION
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <CheckSquare className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  {finding.recommendedAction}
-                </span>
-              </div>
-              {finding.testingCriteria && (
-                <div className="space-y-3 rounded-lg bg-secondary p-4">
-                  <div>
-                    <p className="text-xs font-medium">What to test</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {finding.testingCriteria.whatToTest}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium">What to look for</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {finding.testingCriteria.whatToLookFor}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium">
-                      What changes assessment
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {finding.testingCriteria.whatChangesAssessment}
-                    </p>
-                  </div>
+          <p className="text-sm leading-relaxed">{finding.why_it_matters}</p>
+
+          {finding.user_segment_overlap && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                Users at risk
+              </p>
+              <p className="text-sm leading-relaxed">
+                {finding.user_segment_overlap}
+              </p>
+            </div>
+          )}
+
+          {finding.compensating_advantages && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                Your advantages
+              </p>
+              <p className="text-sm leading-relaxed">
+                {finding.compensating_advantages}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recommended Action */}
+      <div
+        className={`flex items-start gap-3 rounded-xl border border-border p-5 ${
+          finding.recommended_action === "Escalate"
+            ? "border-destructive/30 bg-destructive/5"
+            : finding.recommended_action === "Manual test recommended"
+              ? "border-blue-500/30 bg-blue-500/5"
+              : finding.recommended_action === "Flag to team"
+                ? "border-orange-500/30 bg-orange-500/5"
+                : ""
+        }`}
+      >
+        <ActionIcon className={`h-5 w-5 mt-0.5 ${action.color}`} />
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">
+            {finding.recommended_action || "No action needed"}
+          </p>
+          {testingCriteria && (
+            <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+              {testingCriteria.what_to_test && (
+                <div>
+                  <p className="font-medium text-foreground">What to test</p>
+                  <p>{testingCriteria.what_to_test}</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+              {testingCriteria.what_to_look_for && (
+                <div>
+                  <p className="font-medium text-foreground">
+                    What to look for
+                  </p>
+                  <p>{testingCriteria.what_to_look_for}</p>
+                </div>
+              )}
+              {testingCriteria.what_changes_assessment && (
+                <div>
+                  <p className="font-medium text-foreground">
+                    What changes the assessment
+                  </p>
+                  <p>{testingCriteria.what_changes_assessment}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
