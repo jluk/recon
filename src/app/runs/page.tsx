@@ -28,7 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Play, Clock, Loader2, Check } from "lucide-react";
+import { Play, Clock, Loader2, Check, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 
@@ -363,6 +364,15 @@ export default function RunsPage() {
                       )}
                     </div>
                   ))}
+                  {!running && totalFindings > 0 && (
+                    <Link
+                      href="/findings"
+                      onClick={() => setOpen(false)}
+                      className="flex items-center justify-center gap-2 mt-3 w-full rounded-md bg-foreground text-background py-2 text-sm font-medium hover:bg-foreground/90 transition-colors"
+                    >
+                      View {totalFindings} new finding{totalFindings !== 1 ? "s" : ""} <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
