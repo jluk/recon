@@ -132,8 +132,13 @@ export default function FindingsPage() {
     );
   }
 
+  const highCount = findings.filter((f) => f.threat_level === "High").length;
+  const medCount = findings.filter((f) => f.threat_level === "Medium").length;
+  const lowCount = findings.filter((f) => f.threat_level === "Low").length;
+  const monitorCount = findings.filter((f) => f.threat_level === "Monitor").length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Findings</h1>
@@ -152,6 +157,64 @@ export default function FindingsPage() {
           </Button>
         )}
       </div>
+
+      {/* Threat breakdown strip */}
+      {findings.length > 0 && (
+        <div className="flex gap-3">
+          {highCount > 0 && (
+            <button
+              onClick={() => setThreatFilter(threatFilter === "High" ? "all" : "High")}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                threatFilter === "High"
+                  ? "border-destructive/50 bg-destructive/10 text-destructive"
+                  : "border-border hover:border-destructive/30 text-muted-foreground hover:text-destructive"
+              }`}
+            >
+              <AlertTriangle className="h-3 w-3" />
+              {highCount} High
+            </button>
+          )}
+          {medCount > 0 && (
+            <button
+              onClick={() => setThreatFilter(threatFilter === "Medium" ? "all" : "Medium")}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                threatFilter === "Medium"
+                  ? "border-orange-500/50 bg-orange-500/10 text-orange-600"
+                  : "border-border hover:border-orange-500/30 text-muted-foreground hover:text-orange-600"
+              }`}
+            >
+              <Shield className="h-3 w-3" />
+              {medCount} Medium
+            </button>
+          )}
+          {lowCount > 0 && (
+            <button
+              onClick={() => setThreatFilter(threatFilter === "Low" ? "all" : "Low")}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                threatFilter === "Low"
+                  ? "border-foreground/20 bg-secondary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Eye className="h-3 w-3" />
+              {lowCount} Low
+            </button>
+          )}
+          {monitorCount > 0 && (
+            <button
+              onClick={() => setThreatFilter(threatFilter === "Monitor" ? "all" : "Monitor")}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                threatFilter === "Monitor"
+                  ? "border-foreground/20 bg-secondary text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Eye className="h-3 w-3" />
+              {monitorCount} Monitor
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Select mode toolbar */}
       {selectMode && (
@@ -261,7 +324,7 @@ export default function FindingsPage() {
         </span>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {filtered.map((finding) => {
           const threat =
             threatConfig[finding.threat_level] ?? threatConfig.Monitor;
@@ -269,14 +332,14 @@ export default function FindingsPage() {
           const isSelected = selected.has(finding.id);
 
           const card = (
-            <div className={`group rounded-xl border p-5 transition-all ${
+            <div className={`group rounded-lg border px-4 py-3 transition-all ${
               isSelected
                 ? "border-foreground/30 bg-secondary/40"
                 : "border-border hover:border-foreground/20 hover:bg-secondary/20"
             }`}>
-              <div className="flex gap-4">
+              <div className="flex gap-3">
                 {/* Checkbox or threat icon */}
-                <div className="flex flex-col items-center gap-2 pt-0.5">
+                <div className="flex flex-col items-center pt-0.5">
                   {selectMode ? (
                     <button
                       onClick={(e) => {
@@ -284,17 +347,17 @@ export default function FindingsPage() {
                         e.stopPropagation();
                         toggleSelect(finding.id);
                       }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-secondary"
+                      className="flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-secondary"
                     >
                       {isSelected ? (
-                        <CheckSquare className="h-4 w-4 text-foreground" />
+                        <CheckSquare className="h-3.5 w-3.5 text-foreground" />
                       ) : (
-                        <Square className="h-4 w-4 text-muted-foreground" />
+                        <Square className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
                     </button>
                   ) : (
                     <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                      className={`flex h-7 w-7 items-center justify-center rounded-md ${
                         finding.threat_level === "High"
                           ? "bg-destructive/10 text-destructive"
                           : finding.threat_level === "Medium"
@@ -302,58 +365,42 @@ export default function FindingsPage() {
                             : "bg-secondary text-muted-foreground"
                       }`}
                     >
-                      <ThreatIcon className="h-4 w-4" />
+                      <ThreatIcon className="h-3.5 w-3.5" />
                     </div>
                   )}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  {/* Header row */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant={threat.variant}>{threat.label}</Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {finding.confidence} confidence
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      &middot;
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {getCompetitorName(finding.competitor_id)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      &middot;
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(finding.created_at).toLocaleDateString()}
-                    </span>
+                  {/* Claim as title + metadata inline */}
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium leading-snug">
+                      {finding.claim}
+                    </p>
+                    {!selectMode && (
+                      <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                    )}
                   </div>
 
-                  {/* Claim as title */}
-                  <p className="text-sm font-semibold leading-snug mb-2">
-                    {finding.claim}
-                  </p>
-
-                  {/* Reality as summary */}
-                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+                  {/* Reality preview */}
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-1 mt-0.5">
                     {finding.reality}
                   </p>
 
-                  {/* Footer */}
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {finding.sources.map((source) => (
-                        <span
-                          key={source}
-                          className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground"
-                        >
-                          {source}
-                        </span>
-                      ))}
-                    </div>
-                    {!selectMode && (
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                    )}
+                  {/* Meta row */}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <Badge variant={threat.variant} className="text-[10px] px-1.5 py-0">{threat.label}</Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      {finding.confidence}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">&middot;</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {getCompetitorName(finding.competitor_id)}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">&middot;</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {new Date(finding.created_at).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
               </div>

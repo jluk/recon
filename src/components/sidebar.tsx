@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,18 +12,29 @@ import {
   Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Competitors", href: "/competitors", icon: Target },
   { name: "Sources", href: "/sources", icon: Search },
-  { name: "Findings", href: "/findings", icon: FileText },
+  { name: "Findings", href: "/findings", icon: FileText, badge: true },
   { name: "Runs", href: "/runs", icon: Radar },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [highCount, setHighCount] = useState(0);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("findings")
+      .select("id", { count: "exact", head: true })
+      .eq("threat_level", "High")
+      .then(({ count }) => setHighCount(count ?? 0));
+  }, [pathname]); // refresh on navigation
 
   return (
     <aside className="flex w-64 flex-col border-r border-border bg-card">
@@ -50,7 +62,12 @@ export function Sidebar() {
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.name}
+              <span className="flex-1">{item.name}</span>
+              {item.badge && highCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                  {highCount}
+                </span>
+              )}
             </Link>
           );
         })}
