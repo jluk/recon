@@ -16,6 +16,7 @@ export type Database = {
           website: string;
           description: string;
           priority: string;
+          schedule_frequency: string;
           user_id: string;
           created_at: string;
           updated_at: string;
@@ -26,6 +27,7 @@ export type Database = {
           website?: string;
           description?: string;
           priority?: string;
+          schedule_frequency?: string;
           user_id: string;
           created_at?: string;
           updated_at?: string;
@@ -36,6 +38,7 @@ export type Database = {
           website?: string;
           description?: string;
           priority?: string;
+          schedule_frequency?: string;
           user_id?: string;
           updated_at?: string;
         };
@@ -182,6 +185,42 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      settings: {
+        Row: {
+          id: string;
+          user_id: string;
+          product_name: string;
+          product_context: string;
+          gemini_api_key: string;
+          email: string;
+          enabled_sources: string[];
+          schedule_enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          product_name?: string;
+          product_context?: string;
+          gemini_api_key?: string;
+          email?: string;
+          enabled_sources?: string[];
+          schedule_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          product_name?: string;
+          product_context?: string;
+          gemini_api_key?: string;
+          email?: string;
+          enabled_sources?: string[];
+          schedule_enabled?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
