@@ -121,6 +121,40 @@ create policy "Users can update their own findings"
   on public.findings for update
   using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
 
+-- Settings table (server-side storage for cron jobs and scheduled runs)
+create table public.settings (
+  id uuid default gen_random_uuid() primary key,
+  user_id text not null unique,
+  product_name text not null default '',
+  product_context text not null default '',
+  gemini_api_key text not null default '',
+  email text not null default '',
+  enabled_sources text[] not null default '{hackernews,reddit,youtube}',
+  schedule_enabled boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.settings enable row level security;
+
+create policy "Users can view their own settings"
+  on public.settings for select
+  using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+
+create policy "Users can insert their own settings"
+  on public.settings for insert
+  with check (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+
+create policy "Users can update their own settings"
+  on public.settings for update
+  using (user_id = current_setting('request.jwt.claims', true)::json->>'sub');
+
+-- Add schedule_frequency to competitors (how often to auto-analyze)
+-- Defaults based on priority: Primary=weekly, Secondary=biweekly, Watch=monthly
+alter table public.competitors
+  add column schedule_frequency text not null default 'default'
+  check (schedule_frequency in ('daily', 'weekly', 'biweekly', 'monthly', 'never', 'default'));
+
 -- Indexes
 create index idx_competitors_user_id on public.competitors(user_id);
 create index idx_sources_competitor_id on public.sources(competitor_id);
@@ -130,3 +164,4 @@ create index idx_runs_user_id on public.runs(user_id);
 create index idx_findings_run_id on public.findings(run_id);
 create index idx_findings_competitor_id on public.findings(competitor_id);
 create index idx_findings_user_id on public.findings(user_id);
+create index idx_settings_user_id on public.settings(user_id);
