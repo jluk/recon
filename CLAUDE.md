@@ -119,6 +119,32 @@ Specific. Sourced. Tells me something I wouldn't have noticed. Has a clear so-wh
 
 ---
 
+## Testing
+
+- **Framework**: Vitest with mocked `fetch` and external SDKs
+- **Run**: `npm test` (single run) or `npm run test:watch` (watch mode)
+- **Test location**: Co-located with source files (e.g. `analyze.ts` → `analyze.test.ts`)
+
+### Rules — always follow these
+
+- **Every new feature or bug fix must include tests.** If you add or modify logic in `src/lib/` or `src/app/api/`, add or update the corresponding `.test.ts` file in the same directory.
+- **Run `npm test` before committing.** All tests must pass. Do not commit with failing tests.
+- **Mock external dependencies, never call real APIs in tests.** Mock `fetch` for source modules (HN, Reddit, YouTube). Mock `@google/genai` for the analysis pipeline. Mock `@supabase/supabase-js` for the API route.
+- **Test the important behavior, not implementation details.** Focus on: input/output contracts, edge cases (null, empty, malformed data), deduplication logic, error handling paths, and data transformation (HTML stripping, markdown stripping, JSON parsing).
+- **Keep tests fast.** Mock rate-limit delays (`setTimeout`) in tests so the suite runs in under 2 seconds. No network calls, no database calls.
+
+### Current test coverage
+
+| File | Tests | What's covered |
+|------|-------|----------------|
+| `src/lib/sources/hackernews.test.ts` | 10 | Fuzzy variants, dedup, HTML stripping, sorting, null handling, API errors |
+| `src/lib/sources/reddit.test.ts` | 8 | Dedup, markdown stripping, AutoModerator filtering, engagement gating, cutoff, API errors |
+| `src/lib/sources/youtube.test.ts` | 7 | Stats fetch, comment limits, dedup, HTML stripping, zero-comment skip, API errors |
+| `src/lib/analyze.test.ts` | 9 | JSON parsing, markdown-wrapped responses, empty/null/non-array responses, existing findings dedup, source formatting |
+| `src/app/api/run/route.test.ts` | 11 | Field validation, run creation, source filtering, default values, debug output |
+
+---
+
 ## Roadmap
 
 - [ ] **Clerk authentication** — needed before public launch. RLS policies already written for JWT claims.
