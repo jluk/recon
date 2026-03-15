@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { filterFindings } from "@/lib/findings-filter";
 import type { Database } from "@/lib/database.types";
 
 type Finding = Database["public"]["Tables"]["findings"]["Row"];
@@ -79,21 +80,11 @@ export default function FindingsPage() {
     return competitors.find((c) => c.id === id)?.name ?? "Unknown";
   }
 
-  const filtered = findings.filter((f) => {
-    if (competitorFilter !== "all" && f.competitor_id !== competitorFilter) return false;
-    if (threatFilter !== "all" && f.threat_level !== threatFilter) return false;
-    if (confidenceFilter !== "all" && f.confidence !== confidenceFilter)
-      return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        f.claim?.toLowerCase().includes(q) ||
-        f.reality?.toLowerCase().includes(q) ||
-        f.why_it_matters?.toLowerCase().includes(q) ||
-        f.recommended_action?.toLowerCase().includes(q);
-      if (!matchesSearch) return false;
-    }
-    return true;
+  const filtered = filterFindings(findings, {
+    competitorId: competitorFilter,
+    threatLevel: threatFilter,
+    confidence: confidenceFilter,
+    search: searchQuery,
   });
 
   function toggleSelect(id: string) {
