@@ -60,6 +60,12 @@ export default function CompetitorsPage() {
   const [newDescription, setNewDescription] = useState("");
   const [newPriority, setNewPriority] = useState<CompetitorPriority>("Watch");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editWebsite, setEditWebsite] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPriority, setEditPriority] = useState<CompetitorPriority>("Watch");
 
   const supabase = createClient();
 
@@ -103,6 +109,39 @@ export default function CompetitorsPage() {
       setNewDescription("");
       setNewPriority("Watch");
       setOpen(false);
+    }
+    setSaving(false);
+  }
+
+  function openEdit(competitor: Competitor) {
+    setEditingCompetitor(competitor);
+    setEditName(competitor.name);
+    setEditWebsite(competitor.website ?? "");
+    setEditDescription(competitor.description ?? "");
+    setEditPriority((competitor.priority as CompetitorPriority) ?? "Watch");
+    setEditOpen(true);
+  }
+
+  async function handleEdit() {
+    if (!editingCompetitor || !editName.trim()) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("competitors")
+      .update({
+        name: editName,
+        website: editWebsite,
+        description: editDescription,
+        priority: editPriority,
+      })
+      .eq("id", editingCompetitor.id);
+
+    if (error) {
+      console.error("Failed to update competitor:", error);
+    } else {
+      await loadCompetitors();
+      setEditOpen(false);
+      setEditingCompetitor(null);
     }
     setSaving(false);
   }
@@ -244,7 +283,7 @@ export default function CompetitorsPage() {
                     }
                   />
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled>
+                    <DropdownMenuItem onClick={() => openEdit(competitor)}>
                       <Pencil className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
@@ -297,6 +336,70 @@ export default function CompetitorsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Competitor</DialogTitle>
+            <DialogDescription>
+              Update competitor details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Company Name</Label>
+              <Input
+                id="edit-name"
+                placeholder="e.g. Pika Labs"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-website">Website</Label>
+              <Input
+                id="edit-website"
+                placeholder="e.g. pika.art"
+                value={editWebsite}
+                onChange={(e) => setEditWebsite(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-priority">Priority</Label>
+              <Select value={editPriority} onValueChange={(v) => setEditPriority((v ?? "Watch") as CompetitorPriority)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Primary">Primary</SelectItem>
+                  <SelectItem value="Secondary">Secondary</SelectItem>
+                  <SelectItem value="Watch">Watch</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {editPriority === "Primary" && "Your top competitive threat. Gets the most source coverage and monitoring frequency."}
+                {editPriority === "Secondary" && "Worth tracking regularly, but not your most urgent threat."}
+                {editPriority === "Watch" && "On your radar. You'll be alerted if they make a significant move."}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Notes</Label>
+              <Textarea
+                id="edit-description"
+                placeholder="Why are you tracking this competitor?"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleEdit} className="w-full" disabled={saving}>
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
