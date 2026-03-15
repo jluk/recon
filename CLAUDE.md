@@ -142,6 +142,7 @@ Specific. Sourced. Tells me something I wouldn't have noticed. Has a clear so-wh
 | `src/lib/sources/youtube.test.ts` | 7 | Stats fetch, comment limits, dedup, HTML stripping, zero-comment skip, API errors |
 | `src/lib/analyze.test.ts` | 9 | JSON parsing, markdown-wrapped responses, empty/null/non-array responses, existing findings dedup, source formatting |
 | `src/app/api/run/route.test.ts` | 11 | Field validation, run creation, source filtering, default values, debug output |
+| `src/lib/findings-filter.test.ts` | 20 | Text search (claim, reality, why_it_matters, recommended_action), case-insensitivity, competitor/threat/confidence filters, combined filters, edge cases |
 
 ---
 
