@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
+import { Input } from "@/components/ui/input";
 import {
   Filter,
   Loader2,
@@ -21,9 +22,11 @@ import {
   Trash2,
   CheckSquare,
   Square,
+  Search,
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { filterFindings } from "@/lib/findings-filter";
 import type { Database } from "@/lib/database.types";
 
 type Finding = Database["public"]["Tables"]["findings"]["Row"];
@@ -43,6 +46,7 @@ export default function FindingsPage() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [competitorFilter, setCompetitorFilter] = useState<string>("all");
   const [threatFilter, setThreatFilter] = useState<string>("all");
   const [confidenceFilter, setConfidenceFilter] = useState<string>("all");
@@ -76,12 +80,11 @@ export default function FindingsPage() {
     return competitors.find((c) => c.id === id)?.name ?? "Unknown";
   }
 
-  const filtered = findings.filter((f) => {
-    if (competitorFilter !== "all" && f.competitor_id !== competitorFilter) return false;
-    if (threatFilter !== "all" && f.threat_level !== threatFilter) return false;
-    if (confidenceFilter !== "all" && f.confidence !== confidenceFilter)
-      return false;
-    return true;
+  const filtered = filterFindings(findings, {
+    competitorId: competitorFilter,
+    threatLevel: threatFilter,
+    confidence: confidenceFilter,
+    search: searchQuery,
   });
 
   function toggleSelect(id: string) {
@@ -272,7 +275,16 @@ export default function FindingsPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search findings..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 w-[220px]"
+          />
+        </div>
         <Filter className="h-4 w-4 text-muted-foreground" />
         <Select
           value={competitorFilter}
@@ -437,7 +449,7 @@ export default function FindingsPage() {
 
         {findings.length > 0 && filtered.length === 0 && (
           <div className="py-16 text-center text-muted-foreground">
-            No findings match the current filters.
+            No findings match {searchQuery ? `"${searchQuery}"` : "the current filters"}.
           </div>
         )}
       </div>

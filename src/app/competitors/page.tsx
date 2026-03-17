@@ -34,12 +34,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, ExternalLink, MoreHorizontal, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Plus, ExternalLink, MoreHorizontal, Loader2, Pencil, Trash2, CalendarClock } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 
 type Competitor = Database["public"]["Tables"]["competitors"]["Row"];
 type CompetitorPriority = "Primary" | "Secondary" | "Watch";
+type ScheduleFrequency = "default" | "daily" | "weekly" | "biweekly" | "monthly" | "never";
+
+const scheduleLabels: Record<ScheduleFrequency, string> = {
+  default: "Default (by priority)",
+  daily: "Daily",
+  weekly: "Weekly",
+  biweekly: "Every 2 weeks",
+  monthly: "Monthly",
+  never: "Never",
+};
+
+const priorityDefaultSchedule: Record<string, string> = {
+  Primary: "Weekly",
+  Secondary: "Every 2 weeks",
+  Watch: "Monthly",
+};
 
 const priorityVariant = {
   Primary: "destructive",
@@ -59,7 +75,15 @@ export default function CompetitorsPage() {
   const [newWebsite, setNewWebsite] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newPriority, setNewPriority] = useState<CompetitorPriority>("Watch");
+  const [newSchedule, setNewSchedule] = useState<ScheduleFrequency>("default");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editWebsite, setEditWebsite] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPriority, setEditPriority] = useState<CompetitorPriority>("Watch");
+  const [editSchedule, setEditSchedule] = useState<ScheduleFrequency>("default");
 
   const supabase = createClient();
 
@@ -91,6 +115,7 @@ export default function CompetitorsPage() {
       website: newWebsite,
       description: newDescription,
       priority: newPriority,
+      schedule_frequency: newSchedule,
       user_id: TEMP_USER_ID,
     });
 
@@ -102,7 +127,43 @@ export default function CompetitorsPage() {
       setNewWebsite("");
       setNewDescription("");
       setNewPriority("Watch");
+      setNewSchedule("default");
       setOpen(false);
+    }
+    setSaving(false);
+  }
+
+  function openEdit(competitor: Competitor) {
+    setEditingCompetitor(competitor);
+    setEditName(competitor.name);
+    setEditWebsite(competitor.website ?? "");
+    setEditDescription(competitor.description ?? "");
+    setEditPriority((competitor.priority as CompetitorPriority) ?? "Watch");
+    setEditSchedule((competitor.schedule_frequency as ScheduleFrequency) ?? "default");
+    setEditOpen(true);
+  }
+
+  async function handleEdit() {
+    if (!editingCompetitor || !editName.trim()) return;
+    setSaving(true);
+
+    const { error } = await supabase
+      .from("competitors")
+      .update({
+        name: editName,
+        website: editWebsite,
+        description: editDescription,
+        priority: editPriority,
+        schedule_frequency: editSchedule,
+      })
+      .eq("id", editingCompetitor.id);
+
+    if (error) {
+      console.error("Failed to update competitor:", error);
+    } else {
+      await loadCompetitors();
+      setEditOpen(false);
+      setEditingCompetitor(null);
     }
     setSaving(false);
   }
@@ -191,6 +252,25 @@ export default function CompetitorsPage() {
                 </p>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="schedule">Schedule Frequency</Label>
+                <Select value={newSchedule} onValueChange={(v) => setNewSchedule((v ?? "default") as ScheduleFrequency)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default ({priorityDefaultSchedule[newPriority] ?? "Monthly"})</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Every 2 weeks</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="never">Never (manual only)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  How often this competitor is automatically analyzed when scheduled runs are enabled.
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="description">Notes</Label>
                 <Textarea
                   id="description"
@@ -244,7 +324,7 @@ export default function CompetitorsPage() {
                     }
                   />
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled>
+                    <DropdownMenuItem onClick={() => openEdit(competitor)}>
                       <Pencil className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
@@ -287,6 +367,14 @@ export default function CompetitorsPage() {
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
+                  <span className="flex items-center gap-1">
+                    <CalendarClock className="h-3 w-3" />
+                    {competitor.schedule_frequency === "never"
+                      ? "Manual only"
+                      : competitor.schedule_frequency === "default"
+                        ? priorityDefaultSchedule[competitor.priority] ?? "Monthly"
+                        : scheduleLabels[competitor.schedule_frequency as ScheduleFrequency] ?? "Monthly"}
+                  </span>
                   <span>
                     Added{" "}
                     {new Date(competitor.created_at).toLocaleDateString()}
@@ -297,6 +385,89 @@ export default function CompetitorsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Competitor</DialogTitle>
+            <DialogDescription>
+              Update competitor details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Company Name</Label>
+              <Input
+                id="edit-name"
+                placeholder="e.g. Pika Labs"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-website">Website</Label>
+              <Input
+                id="edit-website"
+                placeholder="e.g. pika.art"
+                value={editWebsite}
+                onChange={(e) => setEditWebsite(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-priority">Priority</Label>
+              <Select value={editPriority} onValueChange={(v) => setEditPriority((v ?? "Watch") as CompetitorPriority)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Primary">Primary</SelectItem>
+                  <SelectItem value="Secondary">Secondary</SelectItem>
+                  <SelectItem value="Watch">Watch</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {editPriority === "Primary" && "Your top competitive threat. Gets the most source coverage and monitoring frequency."}
+                {editPriority === "Secondary" && "Worth tracking regularly, but not your most urgent threat."}
+                {editPriority === "Watch" && "On your radar. You'll be alerted if they make a significant move."}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-schedule">Schedule Frequency</Label>
+              <Select value={editSchedule} onValueChange={(v) => setEditSchedule((v ?? "default") as ScheduleFrequency)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default ({priorityDefaultSchedule[editPriority] ?? "Monthly"})</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="biweekly">Every 2 weeks</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="never">Never (manual only)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                How often this competitor is automatically analyzed when scheduled runs are enabled.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Notes</Label>
+              <Textarea
+                id="edit-description"
+                placeholder="Why are you tracking this competitor?"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleEdit} className="w-full" disabled={saving}>
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
