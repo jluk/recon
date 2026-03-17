@@ -7,6 +7,9 @@ import { analyzeCompetitor, type SourceData } from "@/lib/analyze";
 
 const TEMP_USER_ID = "temp-local-user";
 
+/** Maximum competitors to analyze per cron invocation to limit API spend */
+const MAX_COMPETITORS_PER_RUN = 10;
+
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -62,11 +65,11 @@ export function isDue(
 }
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret to prevent unauthorized access
+  // Always require CRON_SECRET — if unset, the endpoint is locked down
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -103,7 +106,7 @@ export async function GET(req: NextRequest) {
   if (compError || !competitors?.length) {
     return NextResponse.json({
       skipped: true,
-      reason: compError ? compError.message : "No competitors configured",
+      reason: "No competitors configured",
     });
   }
 
@@ -140,6 +143,9 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Cap the number of competitors per invocation to limit API spend
+  const cappedCompetitors = dueCompetitors.slice(0, MAX_COMPETITORS_PER_RUN);
+
   // 5. Run analysis for each due competitor sequentially
   const activeSources: string[] = settings.enabled_sources ?? [
     "hackernews",
@@ -150,10 +156,9 @@ export async function GET(req: NextRequest) {
     competitor: string;
     findings_count: number;
     status: string;
-    error?: string;
   }[] = [];
 
-  for (const competitor of dueCompetitors) {
+  for (const competitor of cappedCompetitors) {
     let runId: string | null = null;
 
     try {
@@ -170,11 +175,11 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (runError || !run) {
+        console.error(`Cron: failed to create run for ${competitor.id}:`, runError?.message);
         results.push({
           competitor: competitor.name,
           findings_count: 0,
           status: "failed",
-          error: runError?.message ?? "Failed to create run",
         });
         continue;
       }
@@ -291,18 +296,19 @@ export async function GET(req: NextRequest) {
           .eq("id", runId);
       }
 
+      console.error(`Cron: analysis failed for ${competitor.id}:`, error);
       results.push({
         competitor: competitor.name,
         findings_count: 0,
         status: "failed",
-        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   return NextResponse.json({
     ran: results.length,
-    total_competitors: competitors.length,
+    total_due: dueCompetitors.length,
+    capped: dueCompetitors.length > MAX_COMPETITORS_PER_RUN,
     results,
   });
 }
