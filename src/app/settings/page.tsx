@@ -21,6 +21,8 @@ export default function SettingsPage() {
   const [productContext, setProductContext] = useState("");
   const [email, setEmail] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [apiKeyDirty, setApiKeyDirty] = useState(false);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -37,7 +39,10 @@ export default function SettingsPage() {
             setProductName(settings.product_name || localStorage.getItem("recon_product_name") || "Google Vids");
             setProductContext(settings.product_context || localStorage.getItem("recon_product_context") || "AI-powered video creation tool within Google Workspace. Core users: marketing teams, L&D, enterprise communications.");
             setEmail(settings.email || localStorage.getItem("recon_email") || "");
+            // API key comes back masked from server — show masked or localStorage fallback
             setApiKey(settings.gemini_api_key || localStorage.getItem("recon_gemini_key") || "");
+            setHasApiKey(settings.has_api_key ?? false);
+            setApiKeyDirty(false);
             setScheduleEnabled(settings.schedule_enabled ?? false);
             setLoadingSettings(false);
             return;
@@ -59,26 +64,37 @@ export default function SettingsPage() {
   }, []);
 
   async function saveToServer(label: string) {
-    // Always keep localStorage in sync for the Runs page
+    // Keep localStorage in sync for the Runs page
     localStorage.setItem("recon_product_name", productName);
     localStorage.setItem("recon_product_context", productContext);
     localStorage.setItem("recon_email", email);
-    localStorage.setItem("recon_gemini_key", apiKey);
+    // Only store real key in localStorage, not the masked version
+    if (apiKeyDirty) {
+      localStorage.setItem("recon_gemini_key", apiKey);
+    }
 
     setSavingAll(true);
     try {
+      // Only send the API key if the user typed a new one
+      const payload: Record<string, unknown> = {
+        product_name: productName,
+        product_context: productContext,
+        email,
+        schedule_enabled: scheduleEnabled,
+      };
+      if (apiKeyDirty) {
+        payload.gemini_api_key = apiKey;
+      }
+
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          product_name: productName,
-          product_context: productContext,
-          gemini_api_key: apiKey,
-          email,
-          schedule_enabled: scheduleEnabled,
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
+        const { settings } = await res.json();
+        setHasApiKey(settings?.has_api_key ?? hasApiKey);
+        setApiKeyDirty(false);
         setSaved(label);
         setTimeout(() => setSaved(null), 2000);
       }
@@ -215,7 +231,10 @@ export default function SettingsPage() {
               type="password"
               placeholder="AIza..."
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setApiKeyDirty(true);
+              }}
             />
             <p className="text-xs text-muted-foreground">
               Used for the analysis engine. Get one at aistudio.google.com.
@@ -277,14 +296,13 @@ export default function SettingsPage() {
               onClick={() => {
                 const next = !scheduleEnabled;
                 setScheduleEnabled(next);
-                // Save immediately when toggling
+                // Save immediately when toggling — don't send API key
                 fetch("/api/settings", {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     product_name: productName,
                     product_context: productContext,
-                    gemini_api_key: apiKey,
                     email,
                     schedule_enabled: next,
                   }),
@@ -294,7 +312,7 @@ export default function SettingsPage() {
               {scheduleEnabled ? "Disable" : "Enable"}
             </Button>
           </div>
-          {scheduleEnabled && !apiKey && (
+          {scheduleEnabled && !hasApiKey && (
             <p className="text-xs text-destructive">
               Save a Gemini API key above for scheduled runs to work.
             </p>

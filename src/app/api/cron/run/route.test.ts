@@ -142,6 +142,12 @@ function setupMocks(opts: {
   });
 }
 
+/** All route-level tests need CRON_SECRET set and Bearer header */
+function authedRequest() {
+  process.env.CRON_SECRET = "test-secret";
+  return makeRequest({ authorization: "Bearer test-secret" });
+}
+
 describe("getIntervalDays", () => {
   it("returns priority-based default for 'default' frequency", () => {
     expect(getIntervalDays("default", "Primary")).toBe(7);
@@ -177,13 +183,11 @@ describe("isDue", () => {
   });
 
   it("returns true when interval has elapsed", () => {
-    // Last run 8 days ago, interval is 7 days
     const eightDaysAgo = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
     expect(isDue(eightDaysAgo.toISOString(), 7, now)).toBe(true);
   });
 
   it("returns false when interval has not elapsed", () => {
-    // Last run 3 days ago, interval is 7 days
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
     expect(isDue(threeDaysAgo.toISOString(), 7, now)).toBe(false);
   });
@@ -197,21 +201,33 @@ describe("isDue", () => {
 describe("GET /api/cron/run", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // No CRON_SECRET set by default
     delete process.env.CRON_SECRET;
   });
 
-  it("returns 401 when CRON_SECRET is set and auth header is wrong", async () => {
-    process.env.CRON_SECRET = "my-secret";
-    setupMocks({ settings: null });
+  // --- Auth tests ---
 
+  it("returns 401 when CRON_SECRET is not configured", async () => {
+    // No CRON_SECRET env var — endpoint should be locked down
+    const req = makeRequest({ authorization: "Bearer anything" });
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when CRON_SECRET is set but auth header is wrong", async () => {
+    process.env.CRON_SECRET = "my-secret";
     const req = makeRequest({ authorization: "Bearer wrong" });
     const res = await GET(req);
     expect(res.status).toBe(401);
   });
 
-  it("allows request when CRON_SECRET matches", async () => {
+  it("returns 401 when no auth header is provided", async () => {
     process.env.CRON_SECRET = "my-secret";
+    const req = makeRequest();
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+  });
+
+  it("allows request when CRON_SECRET matches", async () => {
     setupMocks({
       settings: {
         gemini_api_key: "key",
@@ -223,19 +239,18 @@ describe("GET /api/cron/run", () => {
       competitors: [],
     });
 
-    const req = makeRequest({ authorization: "Bearer my-secret" });
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.skipped).toBe(true);
-    expect(json.reason).toContain("No competitors");
   });
+
+  // --- Business logic tests (all authed) ---
 
   it("skips when no API key is configured", async () => {
     setupMocks({ settings: { gemini_api_key: "", schedule_enabled: true } });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
     expect(json.skipped).toBe(true);
     expect(json.reason).toContain("No Gemini API key");
@@ -246,8 +261,7 @@ describe("GET /api/cron/run", () => {
       settings: { gemini_api_key: "key", schedule_enabled: false },
     });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
     expect(json.skipped).toBe(true);
     expect(json.reason).toContain("disabled");
@@ -265,8 +279,7 @@ describe("GET /api/cron/run", () => {
       competitors: [],
     });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
     expect(json.skipped).toBe(true);
     expect(json.reason).toContain("No competitors");
@@ -288,8 +301,7 @@ describe("GET /api/cron/run", () => {
       latestRuns: [{ competitor_id: "c1", completed_at: recentRun }],
     });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
     expect(json.skipped).toBe(false);
     expect(json.reason).toContain("No competitors due");
@@ -312,14 +324,15 @@ describe("GET /api/cron/run", () => {
       latestRuns: [{ competitor_id: "c1", completed_at: oldRun }],
     });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
 
     expect(json.ran).toBe(1);
     expect(json.results[0].competitor).toBe("Rival");
     expect(json.results[0].status).toBe("completed");
     expect(json.results[0].findings_count).toBe(1);
+    // Should not leak internal error details
+    expect(json.results[0].error).toBeUndefined();
   });
 
   it("runs never-before-run competitors", async () => {
@@ -337,8 +350,7 @@ describe("GET /api/cron/run", () => {
       latestRuns: [],
     });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
 
     expect(json.ran).toBe(1);
@@ -361,11 +373,34 @@ describe("GET /api/cron/run", () => {
       latestRuns: [],
     });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(authedRequest());
     const json = await res.json();
 
     expect(json.skipped).toBe(false);
     expect(json.reason).toContain("No competitors due");
+  });
+
+  it("response does not contain internal error messages", async () => {
+    const oldRun = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    setupMocks({
+      settings: {
+        gemini_api_key: "key",
+        schedule_enabled: true,
+        enabled_sources: ["hackernews"],
+        product_name: "P",
+        product_context: "C",
+      },
+      competitors: [
+        { id: "c1", name: "Rival", priority: "Primary", schedule_frequency: "default" },
+      ],
+      latestRuns: [{ competitor_id: "c1", completed_at: oldRun }],
+    });
+
+    const res = await GET(authedRequest());
+    const json = await res.json();
+
+    // Ensure no error field leaks internal details
+    const responseStr = JSON.stringify(json);
+    expect(responseStr).not.toContain("error");
   });
 });
